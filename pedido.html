@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pedido Confirmado</title>
+  <style>
+    body{font-family:Arial,sans-serif;background-color:#f9f9f9;display:flex;justify-content:center;align-items:center;height:100vh;margin:0}.container{background-color:#fff;padding:30px;border-radius:12px;box-shadow:0 0 20px rgba(0,0,0,.1);text-align:center;max-width:450px;width:90%}.container h1{color:#28a745;font-size:24px;margin-bottom:20px}.info{font-size:16px;color:#444;margin:10px 0}.id{font-weight:700;color:#333;margin-top:20px;font-size:18px}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>✅ Pedido Confirmado!</h1>
+    <p class="info" id="clienteNome"></p>
+    <p class="info" id="clienteCpf"></p>
+    <p class="info">Seu pedido foi confirmado com sucesso e está sendo preparado.</p>
+    <p class="id" id="pedidoId"></p>
+  </div>
+  <script>
+    const urlParams=new URLSearchParams(window.location.search),nome=decodeURIComponent(urlParams.get("nome")||"Cliente"),cpf=urlParams.get("cpf")||"000.000.000-00",nomeFormatado=`Cliente: ${nome}`,cpfFormatado=`CPF: ${cpf}`,pedidoId="PED"+Math.floor(1e6*Math.random()).toString().padStart(6,"0");document.getElementById("clienteNome").innerText=nomeFormatado,document.getElementById("clienteCpf").innerText=cpfFormatado,document.getElementById("pedidoId").innerText=`ID do Pedido: ${pedidoId}`;
+  </script>
+</body>
+</html>

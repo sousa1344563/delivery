@@ -1,0 +1,41 @@
+import fetch from 'node-fetch';
+
+export default async function handler(request, response) {
+  // 1. Busca as duas chaves de forma segura da Vercel
+  const SECRET_KEY = process.env.NOVAERA_API_KEY;
+  const PRIVATE_KEY = process.env.NOVAERA_PRIVATE_KEY;
+
+  if (!SECRET_KEY || !PRIVATE_KEY) {
+    console.error('ERRO: As variáveis de ambiente NOVAERA_API_KEY e/ou NOVAERA_PRIVATE_KEY não foram configuradas.');
+    return response.status(500).json({ error: 'Erro de configuração no servidor.' });
+  }
+
+  // 2. Cria o token de autenticação Basic Auth
+  const credentials = `${SECRET_KEY}:${PRIVATE_KEY}`;
+  const buff = Buffer.from(credentials);
+  const base64data = buff.toString('base64');
+  const authHeader = `Basic ${base64data}`;
+
+  const { id } = request.query;
+
+  if (!id) {
+    return response.status(400).json({ error: 'ID da transação é obrigatório' });
+  }
+
+  try {
+    const apiResponse = await fetch(`https://api.novaera-pagamentos.com/api/v1/transactions/${id}`, {
+      method: "GET",
+      headers: {
+        // 3. Usa o cabeçalho de autorização correto
+        "Authorization": authHeader
+      }
+    });
+    
+    const data = await apiResponse.json();
+    response.status(apiResponse.status).json(data);
+
+  } catch (error) {
+    console.error('ERRO DETALHADO AO VERIFICAR PAGAMENTO:', error);
+    response.status(500).json({ error: 'Erro ao verificar o status do pagamento.' });
+  }
+}

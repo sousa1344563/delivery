@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pagamento via PIX</title>
+
+  <script src="https://cdn.utmify.com.br/scripts/utms/latest.js" data-utmify-prevent-xcod-sck data-utmify-prevent-subids async defer></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f9f9f9;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .container {
+      background-color: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.1);
+      text-align: center;
+      max-width: 450px;
+      width: 100%;
+    }
+    .mensagem {
+      background-color: #e6f0ff;
+      border-left: 4px solid #007bff;
+      padding: 15px;
+      margin-bottom: 20px;
+      color: #333;
+      border-radius: 6px;
+    }
+    .valor {
+      font-size: 24px;
+      margin: 20px 0;
+      color: #007bff;
+    }
+    .codigo input {
+      width: 100%;
+      padding: 12px;
+      font-size: 14px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      background: #f9f9f9;
+      font-family: monospace;
+      box-sizing: border-box;
+    }
+    .btn-copiar {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      padding: 12px;
+      font-size: 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-top: 10px;
+      width: 100%;
+    }
+    .qr-code {
+      margin-top: 20px;
+      display: flex;
+      justify-content: center;
+    }
+    .aguardando {
+      margin-top: 25px;
+      font-size: 15px;
+      color: #888;
+    }
+    .loader {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #007bff;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+      margin: 10px auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .cliente-info {
+      font-size: 16px;
+      color: #444;
+      margin-top: 10px;
+    }
+    .instrucoes ul {
+      padding-left: 0;
+      list-style: none;
+      text-align: left;
+    }
+    .instrucoes ul li {
+      margin: 8px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Quase lá...</h2>
+    <div class="mensagem">
+      Seu pedido foi pago e já está em preparação.<br>
+      Agora falta apenas pagar a taxa de entrega de R$ 19,90.
+    </div>
+
+    <div class="valor">R$ 19,90</div>
+    <div class="cliente-info" id="clienteNome"></div>
+
+    <div class="codigo">
+      <input type="text" id="pixCode" readonly>
+      <button class="btn-copiar" onclick="copiarPix()">Copiar Código PIX</button>
+    </div>
+
+    <div class="qr-code">
+      <img id="pixQrCode" src="" alt="QR Code PIX" style="display:none; width: 200px; height: 200px;">
+    </div>
+
+    <div class="aguardando">
+      <div class="loader"></div>
+      Aguardando confirmação do pagamento...
+    </div>
+
+    <div class="instrucoes">
+      <ul>
+        <li>✅ Copie o código acima.</li>
+        <li>✅ No seu banco, selecione PIX → Copia e Cola.</li>
+        <li>✅ Cole o código e confirme o pagamento.</li>
+        <li>✅ A confirmação chega em alguns segundos.</li>
+      
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    // SCRIPT ATUALIZADO COM A INTEGRAÇÃO UTMFY
+    const urlParams = new URLSearchParams(window.location.search);
+    const cpf = urlParams.get('cpf');
+    const nome = decodeURIComponent(urlParams.get('nome') || 'Cliente');
+    const utm_source = urlParams.get('utm_source') || '';
+    const utm_campaign = urlParams.get('utm_campaign') || '';
+    const utm_medium = urlParams.get('utm_medium') || '';
+    const utm_content = urlParams.get('utm_content') || '';
+    const utm_term = urlParams.get('utm_term') || '';
+
+    let transactionId = null;
+    document.getElementById("clienteNome").innerText = `Cliente: ${nome}`;
+
+    async function gerarTransacaoPix() {
+      const pixInput = document.getElementById("pixCode");
+      const qrCodeImg = document.getElementById("pixQrCode");
+      const createdAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+      try {
+        const response = await fetch(`/api/gerar-pix`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            nome: nome,
+            cpf: cpf
+          })
+        });
+
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+          transactionId = data.data.id; // Pega o ID da transação
+          
+          pixInput.value = data.data.pix.qrcode;
+          qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(data.data.pix.qrcode)}&size=200x200`;
+          qrCodeImg.style.display = 'block';
+          
+          await enviarParaUtmify("waiting_payment", createdAt, null); // Envia para UTMFY
+          verificarPagamento(transactionId, createdAt);
+        } else {
+          console.error("Erro retornado pelo proxy:", data);
+          pixInput.value = data.message || "Erro ao gerar PIX. Verifique os dados.";
+        }
+      } catch (error) {
+        console.error("Erro ao chamar o proxy de geração:", error);
+        pixInput.value = "Erro na comunicação com o servidor.";
+      }
+    }
+
+    async function verificarPagamento(transactionId, createdAt) {
+      const interval = setInterval(async () => {
+        try {
+          const response = await fetch(`/api/verificar-pix?id=${transactionId}`);
+          const data = await response.json();
+
+          if (data.success && data.data.status === "paid") {
+            clearInterval(interval);
+            const paidAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
+            await enviarParaUtmify("paid", createdAt, paidAt); // Envia para UTMFY
+            window.location.href = `pedido.html?nome=${encodeURIComponent(nome)}&cpf=${cpf}`;
+          }
+        } catch (error) {
+          console.error("Erro ao verificar pagamento:", error);
+        }
+      }, 5000);
+    }
+
+    async function enviarParaUtmify(status, createdAt, paidAt) {
+      const payload = {
+        orderId: String(transactionId),
+        platform: "Upsell",
+        paymentMethod: "pix",
+        status: status,
+        createdAt: createdAt,
+        approvedDate: paidAt,
+        refundedAt: null,
+        customer: {
+          name: nome,
+          email: "cliente@email.com",
+          phone: "11999999999",
+          document: cpf,
+          country: "BR"
+        },
+        products: [
+          {
+            id: "Upsell V1",
+            name: "taxa de entrega upsell",
+            planId: null,
+            planName: null,
+            quantity: 1,
+            priceInCents: 1990
+          }
+        ],
+        trackingParameters: {
+          utm_source: utm_source,
+          utm_campaign: utm_campaign,
+          utm_medium: utm_medium,
+          utm_content: utm_content,
+          utm_term: utm_term
+        },
+        commission: {
+          totalPriceInCents: 1990,
+          gatewayFeeInCents: 90,
+          userCommissionInCents: 1990
+        },
+        isTest: false
+      };
+
+      try {
+        await fetch("/api/enviar-utm", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
+        console.log("✅ Enviado para UTMIFY com status:", status);
+      } catch (error) {
+        console.error("❌ Erro ao enviar para UTMFY:", error);
+      }
+    }
+
+    function copiarPix() {
+      const pixInput = document.getElementById("pixCode");
+      pixInput.select();
+      document.execCommand("copy");
+      alert("Código PIX copiado com sucesso!");
+    }
+    
+    gerarTransacaoPix();
+  </script>
+</body>
+</html>

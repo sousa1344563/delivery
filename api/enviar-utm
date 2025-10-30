@@ -1,0 +1,28 @@
+import fetch from 'node-fetch';
+
+export default async function handler(request, response) {
+  if (request.method !== 'POST') {
+    return response.status(405).json({ error: 'Método não permitido' });
+  }
+
+  const payload = request.body;
+  const utmifyApiToken = 'CYuwUwGsz8SjlqCK24fSOrEA156ePvNURddd';
+
+  try {
+    const utmifyResponse = await fetch('https://api.utmify.com.br/api-credentials/orders', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-token': utmifyApiToken
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const utmifyData = await utmifyResponse.json();
+
+    response.status(utmifyResponse.status).json(utmifyData);
+  } catch (error) {
+    console.error('ERRO AO ENVIAR PARA UTMFY:', error);
+    response.status(500).json({ error: 'Erro ao se comunicar com a UTMFY.' });
+  }
+}

@@ -1,0 +1,66 @@
+import fetch from 'node-fetch';
+
+export default async function handler(request, response) {
+  if (request.method !== 'POST') {
+    return response.status(405).json({ error: 'Método não permitido' });
+  }
+
+  // Busca as chaves de forma segura da Vercel
+  const SECRET_KEY = process.env.NOVAERA_API_KEY;
+  const PRIVATE_KEY = process.env.NOVAERA_PRIVATE_KEY;
+
+  if (!SECRET_KEY || !PRIVATE_KEY) {
+    console.error('ERRO: Variáveis de ambiente não configuradas.');
+    return response.status(500).json({ error: 'Erro de configuração no servidor.' });
+  }
+
+  // Cria o token de autenticação Basic Auth
+  const authHeader = `Basic ${Buffer.from(`${SECRET_KEY}:${PRIVATE_KEY}`).toString('base64')}`;
+  
+  // Pega o nome e o CPF enviados pelo pix.html
+  const { nome, cpf } = request.body;
+
+  // --- MUDANÇA PRINCIPAL AQUI ---
+  // Monta o corpo da requisição com a estrutura CORRETA
+  const requestData = {
+    paymentMethod: "pix",
+    amount: 1990, // O valor fixo da taxa de entrega em centavos
+    pix: {
+        expiresInDays: 1
+    },
+    items: [{
+        title: "Taxa de Entrega",
+        quantity: 1,
+        tangible: false,
+        unitPrice: 1990
+    }],
+    customer: {
+        name: nome,
+        email: "cliente@email.com", // Mantendo e-mail fixo
+        phone: "11999999999",     // Mantendo telefone fixo
+        document: {
+            type: "cpf",
+            number: cpf
+        }
+    }
+  };
+
+  try {
+    const apiResponse = await fetch("https://api.novaera-pagamentos.com/api/v1/transactions", {
+      method: "POST",
+      headers: {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "Authorization": authHeader
+      },
+      body: JSON.stringify(requestData)
+    });
+
+    const data = await apiResponse.json();
+    response.status(apiResponse.status).json(data);
+
+  } catch (error) {
+    console.error('ERRO DETALHADO AO CHAMAR GATEWAY:', error);
+    response.status(500).json({ error: 'Erro ao se comunicar com o gateway de pagamento.' });
+  }
+}
